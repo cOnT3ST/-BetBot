@@ -1,6 +1,11 @@
+import os
 import telebot
+from dotenv import load_dotenv
 import config
 
+load_dotenv()
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_ID = os.getenv("ADMIN_ID")
 
 # TODO all methods in this file must have type hints -> check for it
 
@@ -22,13 +27,13 @@ class BetBot(telebot.TeleBot):
 	]
 
 	def __init__(self):
-		super().__init__(token=config.TELEGRAM_TOKEN, parse_mode=None)
+		super().__init__(token=TELEGRAM_TOKEN, parse_mode=None)
 		self.set_my_commands(commands=BetBot.MENU_COMMANDS)
 
 	# self.scheduler = Scheduler()
 
 	def send_admin_message(self, text):
-		self.send_message(chat_id=config.ADMIN_ID, text=text)
+		self.send_message(chat_id=ADMIN_ID, text=text)
 
 
 bot = BetBot()
