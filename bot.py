@@ -1,0 +1,49 @@
+import telebot
+import config
+
+
+# TODO all methods in this file must have type hints -> check for it
+
+class BetBot(telebot.TeleBot):
+	# Commands available in bot menu:
+	MENU_COMMANDS_TEXT = [
+		('start', 'Запустить бота'),
+		('help', 'Перечень доступных команд'),
+		('admin', 'Функционал администратора')
+	]
+
+	MENU_COMMANDS = [telebot.types.BotCommand(comm, desc) for comm, desc in MENU_COMMANDS_TEXT]
+
+	# Admin only commands available after inputting 'admin' command:
+	ADMIN_COMMANDS_TEXT = [
+		'Some func №1'
+		'Some func №2'
+		'Some func №3'
+	]
+
+	def __init__(self):
+		super().__init__(token=config.TELEGRAM_TOKEN, parse_mode=None)
+		self.set_my_commands(commands=BetBot.MENU_COMMANDS)
+
+		self.scheduler = Scheduler()
+
+	def send_admin_message(self, text):
+		self.send_message(chat_id=config.ADMIN_ID, text=text)
+
+
+bot = BetBot()
+
+
+@bot.message_handler(func=lambda msg: msg.text[1:] in [c.command for c in bot.get_my_commands()])
+def handle_start_help(message):
+	if message.text == '/start':
+		response_message = config.BOT_START_MESSAGE
+	elif message.text == '/help':
+		response_message = 'HELP COMMAND CALLED'
+	else:
+		response_message = 'THIS COMMAND IS NOT FUNCTIONAL YET'
+	bot.send_admin_message(response_message)
+
+
+if __name__ == '__main__':
+	bot.polling(none_stop=True, interval=0)
