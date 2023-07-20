@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import config
 from typing import List, Tuple
 from scheduler import Scheduler
+import threading
 
 load_dotenv()
 TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
@@ -34,7 +35,8 @@ class BetBot(telebot.TeleBot):
 		super().__init__(token=TELEGRAM_TOKEN, parse_mode=None)
 		self.set_my_commands(commands=BetBot.MENU_COMMANDS)
 		self.scheduler = Scheduler(bot=self)
-		self.scheduler.start()
+		self.scheduler_thread = threading.Thread(target=self.scheduler.start)
+		self.scheduler_thread.start()
 
 	def send_admin_message(self, text: str) -> None:
 		self.send_message(chat_id=ADMIN_ID, text=text)
