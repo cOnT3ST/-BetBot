@@ -1,3 +1,7 @@
+STAT_API_URL: str = 'https://rapidapi.com/api-sports/api/api-football'
+
+SCHEDULER_TIMEZONE: str = 'Europe/Moscow'
+
 DEFAULT_COUNTRY = 'Russia'
 DEFAULT_TOURNAMENT = 'Premier League'
 
