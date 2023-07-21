@@ -69,8 +69,3 @@ def handle_messages(message) -> None:
 		'\n'
 		'Для вывода списка нажмите /help'
 	)
-
-
-if __name__ == '__main__':
-	bot.start()
-	#bot.polling(none_stop=True, interval=0)
