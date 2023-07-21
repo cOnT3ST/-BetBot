@@ -71,6 +71,6 @@ def handle_messages(message) -> None:
 	)
 
 
-if __name__ == '__main__':
-	bot.start()
-	#bot.polling(none_stop=True, interval=0)
+# if __name__ == '__main__':
+# 	bot.start()
+# 	#bot.polling(none_stop=True, interval=0)
