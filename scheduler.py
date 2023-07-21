@@ -10,8 +10,9 @@ class Scheduler:
 
 	def __init__(self, bot):
 		self.bot = bot
-		self._schedule_test_messaging()
 		self.timezone = timezone(SCHEDULER_TIMEZONE)
+		self._schedule_test_messaging()
+
 
 	def _job(self, text: str) -> None:
 		msg1 = f'{datetime.now().strftime("%H:%M:%S")}\n'
@@ -30,9 +31,9 @@ class Scheduler:
 		# t1: Tuple[int, int, int] = (8, 0, 00)
 		# t2: Tuple[int, int, int] = (12, 0, 00)
 		# t3: Tuple[int, int, int] = (17, 0, 00)
-		t1: Tuple[int, int, int] = (22, 1, 00)
-		t2: Tuple[int, int, int] = (22, 2, 00)
-		t3: Tuple[int, int, int] = (22, 3, 00)
+		t1: Tuple[int, int, int] = (22, 30, 00)
+		t2: Tuple[int, int, int] = (22, 31, 00)
+		t3: Tuple[int, int, int] = (22, 32, 00)
 
 		self._schedule_message_daily(text='Доброе утро! Бот на связи', hour=t1[0], minute=t1[1], second=t1[2])
 		self._schedule_message_daily(text='Обед! Bon appetit!', hour=t2[0], minute=t2[1], second=t2[2])
