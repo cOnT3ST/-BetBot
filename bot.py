@@ -37,9 +37,14 @@ class BetBot(telebot.TeleBot):
 		self.scheduler = Scheduler(bot=self)
 		self.scheduler_thread = threading.Thread(target=self.scheduler.start)
 		self.scheduler_thread.start()
+		self.thread = threading.Thread(target=self.start)
+		self.thread.start()
 
 	def send_admin_message(self, text: str) -> None:
 		self.send_message(chat_id=ADMIN_ID, text=text)
+
+	def start(self):
+		self.polling(none_stop=True, interval=0)
 
 
 bot = BetBot()
@@ -67,4 +72,5 @@ def handle_messages(message) -> None:
 
 
 if __name__ == '__main__':
-	bot.polling(none_stop=True, interval=0)
+	bot.start()
+	#bot.polling(none_stop=True, interval=0)
