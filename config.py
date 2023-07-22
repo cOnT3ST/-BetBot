@@ -1,6 +1,7 @@
 STAT_API_URL: str = 'https://rapidapi.com/api-sports/api/api-football'
 
 SCHEDULER_TIMEZONE: str = 'Europe/Moscow'
+SCHEDULER_RUN_TIMES = ((8, 30, 00), (12, 0, 00), (17, 0, 00))
 
 DEFAULT_COUNTRY = 'Russia'
 DEFAULT_TOURNAMENT = 'Premier League'
@@ -22,7 +23,7 @@ MATCHDAY_STATUS_UPDATE_TIME = '07:00'  # At what time every day script sends an 
 BOT_START_MESSAGE = "Всем привет! ✌\n" \
 					"\n" \
 					"Этот простой бот был создан с целью автоматизации нашего соревнования: " \
-					"вместо того, чтобы пересылать друг другу фотографии предстоящих матчей," \
+					"вместо того, чтобы пересылать друг другу фотографии предстоящих матчей, " \
 					"наших ставок, а также ведения вручную статистики в табличке экселя, я " \
 					"постарался научить всему этому вот этого вот бота.\n" \
 					"\n" \
