@@ -3,7 +3,7 @@ import schedule
 from datetime import datetime, time
 from typing import Tuple
 from pytz import timezone
-from config import SCHEDULER_TIMEZONE
+from config import SCHEDULER_TIMEZONE, SCHEDULER_RUN_TIMES
 
 
 class Scheduler:
@@ -28,13 +28,7 @@ class Scheduler:
 			do(self._job, text=text)
 
 	def _schedule_test_messaging(self) -> None:
-		# t1: Tuple[int, int, int] = (8, 0, 00)
-		# t2: Tuple[int, int, int] = (12, 0, 00)
-		# t3: Tuple[int, int, int] = (17, 0, 00)
-		t1: Tuple[int, int, int] = (22, 30, 00)
-		t2: Tuple[int, int, int] = (22, 31, 00)
-		t3: Tuple[int, int, int] = (22, 32, 00)
-
+		t1, t2, t3 = SCHEDULER_RUN_TIMES
 		self._schedule_message_daily(text='Доброе утро! Бот на связи', hour=t1[0], minute=t1[1], second=t1[2])
 		self._schedule_message_daily(text='Обед! Bon appetit!', hour=t2[0], minute=t2[1], second=t2[2])
 		self._schedule_message_daily(text='Рабочий день закончен. Хорошего вечера!', hour=t3[0], minute=t3[1], second=t3[2])
