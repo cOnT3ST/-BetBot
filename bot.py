@@ -7,11 +7,10 @@ from scheduler import Scheduler
 import threading
 
 load_dotenv()
+# TELEGRAM_TOKEN: str = os.getenv("TEST_TELEGRAM_TOKEN")
 TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID: str = os.getenv("ADMIN_ID")
 
-
-# TODO all methods in this file must have type hints -> check for it
 
 class BetBot(telebot.TeleBot):
 	# Commands available in bot menu:
@@ -26,19 +25,28 @@ class BetBot(telebot.TeleBot):
 
 	# Admin only commands available after inputting 'admin' command:
 	ADMIN_COMMANDS_TEXT: List[str] = [
-		'Some func №1'
-		'Some func №2'
-		'Some func №3'
+		'Команда 1',
+		'Команда 2',
+		'Команда 3',
 	]
 
 	def __init__(self):
 		super().__init__(token=TELEGRAM_TOKEN, parse_mode=None)
-		self.set_my_commands(commands=BetBot.MENU_COMMANDS)
 		self.scheduler = Scheduler(bot=self)
+
+		self.set_my_commands(commands=BetBot.MENU_COMMANDS)
+		self.commands = self.get_available_commands()
+		self.allowed_users: List[int] = [int(ADMIN_ID)]
+		self.register_message_handler(self.handle_commands, commands=self.commands)
+		self.register_message_handler(self.handle_messages)
+
 		self.scheduler_thread = threading.Thread(target=self.scheduler.start)
-		self.scheduler_thread.start()
 		self.thread = threading.Thread(target=self.start)
+		self.scheduler_thread.start()
 		self.thread.start()
+
+	def get_available_commands(self) -> List[str]:
+		return [c.command for c in self.get_my_commands()]
 
 	def send_admin_message(self, text: str) -> None:
 		self.send_message(chat_id=ADMIN_ID, text=text)
@@ -46,26 +54,32 @@ class BetBot(telebot.TeleBot):
 	def start(self):
 		self.polling(none_stop=True, interval=0)
 
+	def handle_commands(self, message: telebot.types.Message) -> None:
+		if message.text == '/start':
+			response_message = config.BOT_START_MESSAGE
+		elif message.text == '/help':
+			response_message = 'Это бот используется для автоматизации нашего соревнования ' \
+							   'по ставкам.\n\nКоманды в чат можно писать самому при помощи слэша' \
+							   ' (например /help), либо выбирать из меню, либо кликать по уже' \
+							   ' указанным в чате.\n\nДоступные команды:\n'
+			for c in self.get_my_commands():
+				response_message += f'/{c.command} - {c.description}\n'
+			response_message += '\nПо всем вопросам - пишите или звоните\nСпасибо за использование!'
+		else:
+			response_message = 'Эта команда пока не поддерживается'
+		self.send_message(message.from_user.id, response_message)
+
+	def handle_messages(self, message: telebot.types.Message) -> None:
+		if message.content_type not in ['text']:
+			response_message = 'Этот бот принимает не принимает сообщения такого типа.'
+		elif message.text.startswith('/'):
+			response_message = 'Похоже, вы ввели неподдерживаемую команду.'
+		else:
+			response_message = 'Текстовые сообщения ботом не принимаются'
+		response_ending = "\n\n" \
+						  "Пожалуйста, воспользуйтесь командами из поддерживаемого списка.\n" \
+						  "Для вывода списка нажмите /help"
+		self.send_message(message.from_user.id, response_message + response_ending)
+
 
 bot = BetBot()
-
-
-@bot.message_handler(func=lambda msg: msg.text[1:] in [c.command for c in bot.get_my_commands()])
-def handle_commands(message) -> None:
-	if message.text == '/start':
-		response_message = config.BOT_START_MESSAGE
-	elif message.text == '/help':
-		response_message = 'HELP COMMAND CALLED'
-	else:
-		response_message = 'THIS COMMAND IS NOT FUNCTIONAL YET'
-	bot.send_admin_message(response_message)
-
-
-@bot.message_handler(func=lambda msg: True)
-def handle_messages(message) -> None:
-	bot.send_admin_message(
-		'Текстовые сообщения ботом не принимаются.\n'
-		'Пожалуйста, воспользуйтесь командами из поддерживаемого списка.\n'
-		'\n'
-		'Для вывода списка нажмите /help'
-	)
