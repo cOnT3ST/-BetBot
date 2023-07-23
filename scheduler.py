@@ -1,10 +1,13 @@
 from time import sleep
 import schedule
 from datetime import datetime, time
-from typing import Tuple
 from pytz import timezone
-from config import SCHEDULER_TIMEZONE, SCHEDULER_RUN_TIMES
+from config import SCHEDULER_RUN_TIMES
+from dotenv import load_dotenv
+import os
 
+load_dotenv()
+SCHEDULER_TIMEZONE: str = os.getenv("SCHEDULER_TIMEZONE")
 
 class Scheduler:
 

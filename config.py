@@ -1,6 +1,6 @@
-STAT_API_URL: str = 'https://rapidapi.com/api-sports/api/api-football'
+STAT_API_URL: str = 'https://rapidapi.com/api-sports/api/api-football-beta/'
 
-SCHEDULER_TIMEZONE: str = 'Europe/Moscow'
+#LEAGUE_ID =
 SCHEDULER_RUN_TIMES = ((8, 30, 00), (12, 0, 00), (17, 0, 00))
 
 DEFAULT_COUNTRY = 'Russia'
@@ -12,12 +12,6 @@ TEAMNAME_TRANSLATION = {
 	"Nizhny Novgorod": "Нижний Новгород", "Rostov": "Ростов", "Rubin Kazan'": "Рубин", "Spartak Moskva": "Спартак",
 	"Terek Grozny": "Терек", "Ufa": "Уфа", "Ural": "Урал", "Zenit": "Зенит"
 }
-
-PREFERRED_TIME_FORMAT = '%d.%m.%Y %H:%M'
-MATCH_DURATION = 125  # Minutes after match starts
-ROUND_DEADLINE = 30  # Minutes before all the bets are forbidden
-MATCHDAY_STATUS_UPDATE_TIME = '07:00'  # At what time every day script sends an update request
-# about today's match to statistics API
 
 
 BOT_START_MESSAGE = "Всем привет! ✌\n" \
