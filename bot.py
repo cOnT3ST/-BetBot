@@ -7,8 +7,8 @@ from scheduler import Scheduler
 import threading
 
 load_dotenv()
-TELEGRAM_TOKEN: str = os.getenv("TEST_TELEGRAM_TOKEN")
-# TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
+# TELEGRAM_TOKEN: str = os.getenv("TEST_TELEGRAM_TOKEN")
+TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
 ADMIN_ID: str = os.getenv("ADMIN_ID")
 
 
