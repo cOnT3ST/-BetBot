@@ -1,6 +1,6 @@
 STAT_API_URL: str = 'https://rapidapi.com/api-sports/api/api-football-beta/'
 
-SCHEDULER_RUN_TIMES = ((0, 40, 0), (0, 40, 10), (0, 40, 30))
+SCHEDULER_RUN_TIMES = ("08:30:00", "12:00:00", "17:00:00")
 
 DEFAULT_COUNTRY = 'Russia'
 DEFAULT_TOURNAMENT = 'Premier League'
