@@ -74,8 +74,11 @@ class BetBot(telebot.TeleBot):
 
         return wrapper
 
-    @authorized_users
+    #@authorized_users
     def handle_commands(self, message: telebot.types.Message) -> None:
+        if message.from_user.id not in self.allowed_users:
+            self.send_message(message.chat.id, "Доступ запрещен.\n\nВы не являетесь участником соревнования.")
+            return
         if message.text == '/start':
             response_message = config.BOT_START_MESSAGE
         elif message.text == '/help':
@@ -90,8 +93,11 @@ class BetBot(telebot.TeleBot):
             response_message = 'Эта команда пока не поддерживается'
         self.send_message(message.from_user.id, response_message)
 
-    @authorized_users
+    #@authorized_users
     def handle_messages(self, message: telebot.types.Message) -> None:
+        if message.from_user.id not in self.allowed_users:
+            self.send_message(message.chat.id, "Доступ запрещен.\n\nВы не являетесь участником соревнования.")
+            return
         if message.content_type not in ['text']:
             response_message = 'Этот бот принимает не принимает сообщения такого типа.'
         elif message.text.startswith('/'):
