@@ -29,11 +29,29 @@ class StatsAPIHandler:
         endpoint = 'fixtures'
         next_year = str(int(self.year) + 1)
         querystring = {
+            "from": f"{self.year}-07-01",
             "to": f"{next_year}-07-01",
             "timezone": self.timezone,
             "season": self.year,
+            "league": self.league_id
+        }
+        response = requests.get(
+            urljoin(STAT_API_BASE_URL, endpoint),
+            headers=HEADERS,
+            params=querystring
+        )
+        return response.json()
+
+    def download_matches_by_round(self, round_id: int):
+        endpoint = 'fixtures'
+        next_year = str(int(self.year) + 1)
+        querystring = {
+            "from": f"{self.year}-06-01",
+            "to": f"{next_year}-06-01",
+            "timezone": self.timezone,
+            "season": self.year,
             "league": self.league_id,
-            "from": f"{self.year}-07-01",
+            "round": f"Regular Season - {str(round_id)}"
         }
         response = requests.get(
             urljoin(STAT_API_BASE_URL, endpoint),
@@ -45,4 +63,4 @@ class StatsAPIHandler:
 
 
 sah = StatsAPIHandler(2023)
-#sah.download_calendar()
+print(sah.download_matches_by_round(1))
