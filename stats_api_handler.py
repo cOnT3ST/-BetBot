@@ -18,14 +18,13 @@ class StatsAPIHandler:
         self.year = str(year)
         self.timezone = SCHEDULER_TIMEZONE
 
-    def download_calendar(self):
+    def _download_matches_info(self, round_id=None):
         """
-        Downloads a calendar of fixtures for the given season and league from the API.
+        Downloads match information from the API endpoint 'fixtures' for a given round ID.
 
-        Returns:
-        A JSON object representing the calendar of fixtures
+        :param round_id: (optional) The ID of the round to download match information for.
+        :return: The JSON response containing the match information for the given round ID.
         """
-
         endpoint = 'fixtures'
         next_year = str(int(self.year) + 1)
         querystring = {
@@ -33,7 +32,8 @@ class StatsAPIHandler:
             "to": f"{next_year}-07-01",
             "timezone": self.timezone,
             "season": self.year,
-            "league": self.league_id
+            "league": self.league_id,
+            "round": round_id if not round_id else f"Regular Season - {str(round_id)}"
         }
         response = requests.get(
             urljoin(STAT_API_BASE_URL, endpoint),
@@ -41,26 +41,24 @@ class StatsAPIHandler:
             params=querystring
         )
         return response.json()
+
+    def download_all_matches(self):
+        """
+        Downloads all match information for the current season and league.
+
+        :return: The JSON response containing the match information for the current season and league.
+        """
+        return self._download_matches_info()
 
     def download_matches_by_round(self, round_id: int):
-        endpoint = 'fixtures'
-        next_year = str(int(self.year) + 1)
-        querystring = {
-            "from": f"{self.year}-06-01",
-            "to": f"{next_year}-06-01",
-            "timezone": self.timezone,
-            "season": self.year,
-            "league": self.league_id,
-            "round": f"Regular Season - {str(round_id)}"
-        }
-        response = requests.get(
-            urljoin(STAT_API_BASE_URL, endpoint),
-            headers=HEADERS,
-            params=querystring
-        )
+        """
+        Downloads match information for a specific round of the current season and league.
 
-        return response.json()
+        :param round_id: The ID of the round to download match information for.
+        :return: The JSON response containing the match information for the specified round.
+        """
+        return self._download_matches_info(round_id=round_id)
+
 
 
 sah = StatsAPIHandler(2023)
-print(sah.download_matches_by_round(1))
