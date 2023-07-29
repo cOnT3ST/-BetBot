@@ -7,9 +7,11 @@ from scheduler import Scheduler
 import threading
 
 load_dotenv()
-# TELEGRAM_TOKEN: str = os.getenv("TEST_TELEGRAM_TOKEN")
-TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
-ADMIN_ID: str = os.getenv("ADMIN_ID")
+TELEGRAM_TOKEN: str = os.getenv("TEST_TELEGRAM_TOKEN")
+#TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
+# TODO get rid of test account id and read it from db
+TEST_ACCOUNT_ID = int(os.getenv("TEST_ACCOUNT_ID"))
 
 
 class BetBot(telebot.TeleBot):
@@ -25,9 +27,16 @@ class BetBot(telebot.TeleBot):
 
     # Admin only commands available after inputting 'admin' command:
     ADMIN_COMMANDS_TEXT: List[str] = [
-        'Команда 1',
+        'Показать доступные турниры',
         'Команда 2',
         'Команда 3',
+        'Команда 4',
+        'Команда 5',
+        'Команда 6',
+        'Команда 7',
+        'Команда 8',
+        'Команда 9',
+        'Команда 10',
     ]
 
     def __init__(self):
@@ -36,9 +45,13 @@ class BetBot(telebot.TeleBot):
 
         self.set_my_commands(commands=BetBot.MENU_COMMANDS)
         self.commands = self.get_available_commands()
-        self.allowed_users: List[int] = [int(ADMIN_ID)]
+        self.allowed_users: List[int] = [ADMIN_ID, TEST_ACCOUNT_ID]
         self.register_message_handler(self.handle_commands, commands=self.commands)
         self.register_message_handler(self.handle_messages)
+        self.register_callback_query_handler(
+            callback=self.handle_admin_callbacks,
+            func=lambda query: 'admin' in query.data
+        )
 
         self.scheduler_thread = threading.Thread(target=self.scheduler.start)
         self.thread = threading.Thread(target=self.start)
@@ -86,6 +99,13 @@ class BetBot(telebot.TeleBot):
             for c in self.get_my_commands():
                 response_message += f'/{c.command} - {c.description}\n'
             response_message += '\nПо всем вопросам - пишите или звоните\nСпасибо за использование!'
+        elif message.text == '/admin':
+            if message.from_user.id != ADMIN_ID:
+                response_message = 'Этот функционал доступен только администратору бота'
+            else:
+                ik = self.create_admin_inline()
+                self.send_message(message.from_user.id, 'Выберите требуемую команду:', reply_markup=ik)
+                return
         else:
             response_message = 'Эта команда пока не поддерживается'
         self.send_message(message.from_user.id, response_message)
@@ -102,6 +122,27 @@ class BetBot(telebot.TeleBot):
                           "Пожалуйста, воспользуйтесь командами из поддерживаемого списка.\n" \
                           "Для вывода списка нажмите /help"
         self.send_message(message.from_user.id, response_message + response_ending)
+
+    def create_admin_inline(self) -> telebot.types.InlineKeyboardMarkup:
+        inline_keyboard = telebot.types.InlineKeyboardMarkup(row_width=1)
+        buttons = []
+        for c in BetBot.ADMIN_COMMANDS_TEXT:
+            button = telebot.types.InlineKeyboardButton(text=c, callback_data=f'admin_button{len(buttons) + 1}')
+            buttons.append(button)
+        inline_keyboard.add(*buttons)
+        return inline_keyboard
+
+    def handle_admin_callbacks(self, callback_query: telebot.types.CallbackQuery) -> None:
+        chat_id = callback_query.from_user.id
+        message_id = callback_query.message.id
+
+        if callback_query.data == 'admin_button1':
+            self.send_message(chat_id, f'Здесь будет функционал кнопки {callback_query.data}')
+        else:
+            self.send_message(chat_id, 'Эта команда пока не поддерживается')
+
+        self.edit_message_text(chat_id=chat_id, message_id=message_id, text=f'You pressed {callback_query.data}')
+
 
 
 bot = BetBot()
