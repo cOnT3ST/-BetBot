@@ -1,8 +1,12 @@
+import datetime
+
 from dotenv import load_dotenv
 import os
 from urllib.parse import urljoin
 import requests
 from typing import Union
+from config import DEFAULT_COUNTRY
+from pytz import timezone
 
 load_dotenv()
 SCHEDULER_TIMEZONE: str = os.getenv("SCHEDULER_TIMEZONE")
@@ -17,6 +21,18 @@ class StatsAPIHandler:
         self.league_id = "235"
         self.year = str(year)
         self.timezone = SCHEDULER_TIMEZONE
+
+    def get_contest(
+            self,
+            country: str = DEFAULT_COUNTRY,
+            year: int = datetime.datetime.now(tz=timezone(SCHEDULER_TIMEZONE)).year
+    ):
+        endpoint = 'leagues'
+        querystring = {"season": year, "country": country}
+        response = requests.get(urljoin(STAT_API_BASE_URL, endpoint), headers = HEADERS, params = querystring)
+        valued_data = response.json()['response']
+        return valued_data
+
 
     def _download_matches_info(self, round_id=None):
         """
@@ -40,7 +56,8 @@ class StatsAPIHandler:
             headers=HEADERS,
             params=querystring
         )
-        return response.json()
+        valued_data = response.json()['response']
+        return valued_data
 
     def download_all_matches(self):
         """
@@ -62,3 +79,8 @@ class StatsAPIHandler:
 
 
 sah = StatsAPIHandler(2023)
+#print(sah.get_contest())
+#print(sah.download_all_matches())
+
+# with open('fixtures_response.txt', mode='w', encoding='utf-8') as f:
+#     json.dump(data_to_dump, f, indent=4, ensure_ascii=False)
