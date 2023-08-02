@@ -1,7 +1,8 @@
 import os
 import telebot
 from dotenv import load_dotenv
-from config import BOT_START_MESSAGE, BOT_HELP_MESSAGE, BOT_ACCESS_DENIED_MESSAGE
+from config import BOT_START_MESSAGE, BOT_HELP_MESSAGE, BOT_ACCESS_DENIED_MESSAGE, BOT_UNSUPPORTED_COMMAND_MESSAGE, \
+    BOT_ADMIN_COMMANDS_DENIED_MESSAGE, BOT_UNSUPPORTED_MESSAGE_TYPE_MESSAGE, BOT_COMMAND_NOT_SUPPORTED_MESSAGE
 from typing import List, Tuple, Optional, Callable, Union
 from scheduler import Scheduler
 import threading
@@ -81,7 +82,7 @@ class BetBot(telebot.TeleBot):
     def handle_message(self, message: telebot.types.Message) -> None:
         keyboard = None
         if message.content_type not in ['text']:
-            response_message = 'Этот бот принимает не принимает сообщения такого типа.'
+            response_message = BOT_UNSUPPORTED_MESSAGE_TYPE_MESSAGE
         elif message.text.startswith('/'):
             response_message, keyboard = self.handle_command(message)
         else:
@@ -92,11 +93,7 @@ class BetBot(telebot.TeleBot):
             -> tuple[str, Union[telebot.types.InlineKeyboardMarkup, None]]:
         keyboard = None
         if message.text not in self.commands:
-            response_message = 'Похоже, вы ввели неподдерживаемую команду.' \
-                               '\n\n' \
-                               'Пожалуйста, воспользуйтесь командами из поддерживаемого списка.' \
-                               '\n' \
-                               'Для вывода списка нажмите /help"'
+            response_message = BOT_UNSUPPORTED_COMMAND_MESSAGE
         elif message.text == '/start':
             response_message = BOT_START_MESSAGE
         elif message.text == '/help':
@@ -104,12 +101,12 @@ class BetBot(telebot.TeleBot):
             response_message = BOT_HELP_MESSAGE.format(commands_n_descriptions)
         elif message.text == '/admin':
             if message.from_user.id != ADMIN_ID:
-                response_message = 'Этот функционал доступен только администратору бота'
+                response_message = BOT_ADMIN_COMMANDS_DENIED_MESSAGE
             else:
                 response_message = 'Выберите требуемую команду:'
                 keyboard = self.create_admin_inline()
         else:
-            response_message = 'Эта команда пока не поддерживается'
+            response_message = BOT_COMMAND_NOT_SUPPORTED_MESSAGE
         return (response_message, keyboard)
 
     def handle_admin_callback(self, callback_query: telebot.types.CallbackQuery) -> None:
@@ -119,7 +116,7 @@ class BetBot(telebot.TeleBot):
         if callback_query.data == 'admin_button1':
             self.send_message(chat_id, f'Здесь будет функционал кнопки {callback_query.data}')
         else:
-            self.send_message(chat_id, 'Эта команда пока не поддерживается')
+            self.send_message(chat_id, BOT_COMMAND_NOT_SUPPORTED_MESSAGE)
 
         self.edit_message_text(chat_id=chat_id, message_id=message_id, text=f'You pressed {callback_query.data}')
 
