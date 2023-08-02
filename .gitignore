@@ -1,0 +1,8 @@
+/.virtualenvs
+/.idea
+/API response examples
+/db
+/__pycache__
+
+.env
+ТЗ.docx
