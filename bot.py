@@ -1,11 +1,16 @@
+import datetime
 import os
 import telebot
 from dotenv import load_dotenv
 from config import BOT_START_MESSAGE, BOT_HELP_MESSAGE, BOT_ACCESS_DENIED_MESSAGE, BOT_UNSUPPORTED_COMMAND_MESSAGE, \
-    BOT_ADMIN_COMMANDS_DENIED_MESSAGE, BOT_UNSUPPORTED_MESSAGE_TYPE_MESSAGE, BOT_COMMAND_NOT_SUPPORTED_MESSAGE
+    BOT_ADMIN_COMMANDS_DENIED_MESSAGE, BOT_UNSUPPORTED_MESSAGE_TYPE_MESSAGE, BOT_COMMAND_NOT_SUPPORTED_MESSAGE, \
+    DEFAULT_COUNTRY, DEFAULT_LEAGUE
 from typing import List, Tuple, Optional, Callable, Union
 from scheduler import Scheduler
+from stats_api import StatsAPI
+from database import Database
 import threading
+from pprint import pprint
 
 load_dotenv()
 TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN")
@@ -34,6 +39,8 @@ class BetBot(telebot.TeleBot):
     def __init__(self):
         super().__init__(token=TELEGRAM_TOKEN, parse_mode=None)
         self.scheduler = Scheduler(bot=self)
+        self.api = StatsAPI()
+        self.db = Database()
 
         self.set_my_commands(commands=BetBot.MENU_COMMANDS)
         self.commands = self.get_available_commands()
@@ -114,7 +121,7 @@ class BetBot(telebot.TeleBot):
         message_id = callback_query.message.id
 
         if callback_query.data == 'admin_button1':
-            self.send_message(chat_id, f'Здесь будет функционал кнопки {callback_query.data}')
+            self.create_contest()
         else:
             self.send_message(chat_id, BOT_COMMAND_NOT_SUPPORTED_MESSAGE)
 
@@ -128,6 +135,27 @@ class BetBot(telebot.TeleBot):
             buttons.append(button)
         inline_keyboard.add(*buttons)
         return inline_keyboard
+
+    def create_contest(self) -> None:
+        current_year = datetime.datetime.now(tz=self.scheduler.timezone).year
+        if self.db.contest_exists(DEFAULT_LEAGUE, DEFAULT_COUNTRY, current_year):
+            self.send_admin_message(f'Соревнование РПЛ {current_year} года уже есть в базе данных')
+            return
+
+        data = self.api.get_contest_info()
+        api_id = data['league']['id']
+        name = data['league']['name']
+        country = data['country']['name']
+        year = data['seasons'][0]['year']
+        start_datetime = data['seasons'][0]['start']
+        finish_datetime = data['seasons'][0]['end']
+        logo = data['league']['logo']
+        current = data['seasons'][0]['current']
+
+        contest_info = [api_id, name, country, year, start_datetime, finish_datetime, logo, current]
+
+        self.db.add_contest(*contest_info)
+        self.send_admin_message(f'Соревнование {country} {name} {year} создано!')
 
 
 if __name__ == "__main__":
