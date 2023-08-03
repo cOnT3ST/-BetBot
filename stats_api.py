@@ -34,39 +34,37 @@ class StatsAPI:
         valued_data = response.json()['response'][0]
         return valued_data if not valued_data == [] else None
 
-    def get_matches_info(
-            self,
-            league_api_id: int,
-            year: int,
-            round_id=None
-    ):
-        endpoint = 'fixtures'
-        next_year = year + 1
-        querystring = {
-            "from": f"{year}-07-01",
-            "to": f"{next_year}-07-01",
-            "timezone": self.timezone,
-            "season": year,
-            "league": league_api_id,
-            "round": round_id if not round_id else f"Regular Season - {str(round_id)}"
-        }
-        response = requests.get(
-            urljoin(STAT_API_BASE_URL, endpoint),
-            headers=HEADERS,
-            params=querystring
-        )
-        valued_data = response.json()['response']
-        return valued_data
-
-    def get_all_contest_matches(self, league_api_id: int, year: int) -> list:
-        return self.get_matches_info(league_api_id, year)
-
-    def get_contest_matches_by_round(self, league_api_id: int, year: int, round_id: int) -> list:
-        return self.get_matches_info(league_api_id, year, round_id)
+    # def get_matches_info(
+    #         self,
+    #         league_api_id: int,
+    #         year: int,
+    #         round_id=None
+    # ):
+    #     endpoint = 'fixtures'
+    #     next_year = year + 1
+    #     querystring = {
+    #         "from": f"{year}-07-01",
+    #         "to": f"{next_year}-07-01",
+    #         "timezone": self.timezone,
+    #         "season": year,
+    #         "league": league_api_id,
+    #         "round": round_id if not round_id else f"Regular Season - {str(round_id)}"
+    #     }
+    #     response = requests.get(
+    #         urljoin(STAT_API_BASE_URL, endpoint),
+    #         headers=HEADERS,
+    #         params=querystring
+    #     )
+    #     valued_data = response.json()['response']
+    #     return valued_data
+    #
+    # def get_all_contest_matches(self, league_api_id: int, year: int) -> list:
+    #     return self.get_matches_info(league_api_id, year)
+    #
+    # def get_contest_matches_by_round(self, league_api_id: int, year: int, round_id: int) -> list:
+    #     return self.get_matches_info(league_api_id, year, round_id)
 
 
 if __name__ == '__main__':
     sah = StatsAPI()
-    league_api_id = sah.get_contest_info()['league']['id']
-    year = sah.get_contest_info()['seasons'][0]['year']
-    pprint(sah.get_matches_info(league_api_id=league_api_id, year=year))
+    pprint(sah.get_contest_info())
