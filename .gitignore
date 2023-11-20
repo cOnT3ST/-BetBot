@@ -3,6 +3,7 @@
 /API response examples
 /db
 /__pycache__
+/tests
 
 .env
 ТЗ.docx
