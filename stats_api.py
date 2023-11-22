@@ -149,8 +149,7 @@ class StatsAPI:
         response = self._make_request(
             endpoint='fixtures',
             params={
-                #"from": contest['start_date'],
-                "from": "2023-07-21",
+                "from": contest['start_date'],
                 "to": contest['finish_date'],
                 "timezone": self.timezone.zone,
                 "season": contest['year'],
@@ -210,5 +209,4 @@ class StatsAPI:
 
 if __name__ == '__main__':
     from pprint import pprint
-
     sa = StatsAPI()
