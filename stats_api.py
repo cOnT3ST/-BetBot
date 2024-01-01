@@ -1,26 +1,28 @@
 import datetime
-import time
+import logging
+from utilities import initialize_logging, load_confidentials_from_env, download_logo
 from urllib.parse import urljoin
 import requests
-from typing import Union, List, Dict
-from config import DEFAULT_COUNTRY, DEFAULT_LEAGUE
-from load_confidential_data import load_confidentials_from_env
+from typing import List, Dict
+from config import SCHEDULER_TIMEZONE, PREFERRED_DATETIME_FORMAT
 from pytz import timezone
+from database import Database
 
-CONFIDENTIAL_DATA = load_confidentials_from_env()
 STAT_API_BASE_URL = 'https://api-football-beta.p.rapidapi.com'
 STAT_API_HOST = 'api-football-beta.p.rapidapi.com'
-HEADERS = {"X-RapidAPI-Host": STAT_API_HOST, "X-RapidAPI-Key": CONFIDENTIAL_DATA['stat_api_key']}
+HEADERS = {"X-RapidAPI-Host": STAT_API_HOST, "X-RapidAPI-Key": load_confidentials_from_env("STAT_API_KEY")}
+
+initialize_logging()
 
 
-class StatsAPI:
+class StatsAPIHandler:
     def __init__(self):
-        self.timezone = timezone(CONFIDENTIAL_DATA['scheduler_timezone'])
+        self.timezone = timezone(SCHEDULER_TIMEZONE)
+        self.db = Database()
         # TODO add a counter for requests per day, erase it every day, keep in mind permitted
-        # requests per day by stats service
+        # TODO requests per day by stats service
 
-    def _make_request(self, endpoint: str, params: dict[str, Union[str, int]] = None) \
-            -> Union[None, dict]:
+    def _make_request(self, endpoint: str, params: dict[str, str | int] = None) -> None | dict:
         """
         Makes request to a certain endpoint of the API stats server
 
@@ -31,6 +33,10 @@ class StatsAPI:
 
         if not isinstance(endpoint, str):
             raise ValueError('Endpoint must be a string')
+
+        requests_today = self.db.read_requests_counter()
+        if requests_today == 100:
+            return
 
         request_url = urljoin(base=STAT_API_BASE_URL, url=endpoint)
         # request_url = "https://www.amazon.com/nothing_here"
@@ -54,18 +60,19 @@ class StatsAPI:
         # except requests.JSONDecodeError as e:
         #     print(e.args[0])
 
+        logging.info(f"Requesting {request_url} with params: {params}...")
         response = requests.get(request_url, headers=HEADERS, params=params)
+        self.db.increment_requests_counter()
 
         if not response.ok:
-            print('Request failed')
+            logging.error('BAD RESPONSE')
             return None
 
+        logging.info(f"Request successful")
         valued_data = response.json()
-        print('Response ok. Data obtained')
         return valued_data
 
-    def country_supported(self, country_name: str) \
-            -> bool:
+    def country_supported(self, country_name: str) -> bool:
         """
         Checks if a certain country is supported by the stats API
         :return: True if country is supported, False otherwise
@@ -75,23 +82,22 @@ class StatsAPI:
         if not isinstance(country_name, str):
             raise ValueError('Country parameter must only be string')
 
-        response = self._make_request(
-            endpoint='countries',
-            params={'name': country_name}
-        )
+        logging.info(f'Checking if country ({country_name}) supported by STATS API ...')
+        response = self._make_request(endpoint='countries', params={'name': country_name})
 
         result = response['results'] != 0
+        logging.info(f'Country supported: {result}')
         return result
 
-    def determine_current_season(self) -> Union[None, Dict[str, Union[str, int]]]:
+    def get_current_season(self, league_country, league_name) -> None | Dict[str, str | int]:
         """
-        Determines the details of the current season for a football league.
+        Gets the details of the current season for a football league.
 
         Returns a dictionary containing the details of the current season, or None if the league hasn't started yet.
 
         Returns:
             Union[None, Dict[str, Union[str, int]]]: A dictionary with the following keys:
-                - 'contest_api_id' (int): The API ID of the current season.
+                - 'season_api_id' (int): The API ID of the current season.
                 - 'league_name' (str): The name of the league.
                 - 'league_country' (str): The country of the league.
                 - 'year' (int): The year of the current season.
@@ -99,32 +105,26 @@ class StatsAPI:
                 - 'end_date' (str): The end date of the current season.
                 - 'logo_url' (str): The URL of the league's logo.
                 - 'logo' (bytes): The downloaded logo image data.
+                - 'creation_datetime' (str): The date and time data was stored into DB.
+                - 'is_active' (bool): Represents if this season is still active.
             If the league hasn't started yet, None is returned.
 
         """
 
-        league_country = DEFAULT_COUNTRY
-        league_name = DEFAULT_LEAGUE
-
-        response = self._make_request(
-            endpoint='leagues',
-            params={
-                'name': league_name,
-                'current': 'true',
-                'country': league_country
-            }
-        )
+        response = self._make_request(endpoint='leagues',
+                                      params={'name': league_name, 'current': 'true', 'country': league_country}
+                                      )
 
         if response['results'] == 0:  # League hasn't started yet
             return None
 
         season_id = response['response'][0]['league']['id']
         logo_url = response['response'][0]['league']['logo']
-        logo = self._download_logo(logo_url)
+        logo = download_logo(logo_url)
         season_data = response['response'][0]['seasons'][0]
 
         return {
-            'contest_api_id': season_id,
+            'season_api_id': season_id,
             'league_name': league_name,
             'league_country': league_country,
             'year': season_data['year'],
@@ -132,10 +132,11 @@ class StatsAPI:
             'finish_date': season_data['end'],
             'logo_url': logo_url,
             'logo': logo,
+            'creation_datetime': datetime.datetime.now().strftime(PREFERRED_DATETIME_FORMAT),
             'is_active': True
         }
 
-    def get_calendar(self, contest: Dict[str, Union[str, int]]) -> List[Dict]:
+    def get_calendar(self, contest: Dict[str, str | int]) -> list[dict]:
         """Get the match calendar for a contest.
 
         Args:
@@ -153,7 +154,7 @@ class StatsAPI:
                 "to": contest['finish_date'],
                 "timezone": self.timezone.zone,
                 "season": contest['year'],
-                "league": contest['contest_api_id']
+                "league": contest['season_api_id']
             }
         )
 
@@ -161,7 +162,7 @@ class StatsAPI:
         matches = [
             {
                 'match_id': m['fixture']['id'],
-                'contest_api_id': contest['contest_api_id'],
+                'season_api_id': contest['season_api_id'],
                 'match_datetime': m['fixture']['date'],
                 'round': int(m['league']['round'].split(' - ')[-1]),
                 'home_team_id': m['teams']['home']['id'],
@@ -174,14 +175,13 @@ class StatsAPI:
         ]
         return matches
 
-    def get_all_teams(self, contest_api_id: int, year: int) \
-            -> List[Dict[str, Union[str, bytes]]]:
+    def get_league_teams(self, season_api_id: int, year: int) -> List[Dict[str, str | bytes]]:
         """Gets a list of teams to participate in this football tournament."""
 
         response = self._make_request(
             endpoint='teams',
             params={
-                "league": contest_api_id,
+                "league": season_api_id,
                 "season": year
             }
         )
@@ -193,20 +193,13 @@ class StatsAPI:
             name = t['team']['name']
             city = t['venue']['city']
             logo_url = t['team']['logo']
-            logo = self._download_logo(logo_url)
+            logo = download_logo(logo_url)
             result.append({'team_id': team_id, 'name': name, 'city': city, 'logo': logo, 'logo_url': logo_url})
 
         return result
 
-    def _download_logo(self, url: str) -> bytes:
-        response = requests.get(url)
-        if not response.ok:
-            # Get default logo
-            with open('db/Images/no logo.png', 'rb') as file:
-                return file.read()
-        return response.content
-
 
 if __name__ == '__main__':
     from pprint import pprint
-    sa = StatsAPI()
+
+    sa = StatsAPIHandler()

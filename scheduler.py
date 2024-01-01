@@ -1,38 +1,71 @@
-from time import sleep
-import schedule
-from datetime import datetime, time
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.executors.pool import ThreadPoolExecutor
+from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from pytz import timezone
-from config import SCHEDULER_RUN_TIMES
 from dotenv import load_dotenv
-import os
+from database import Database
+from config import REQUESTS_COUNTER_RESET_TIME, SCHEDULER_TIMEZONE
+
+DB_URL = 'db/MyRPLBetBot.db'
 
 load_dotenv()
-SCHEDULER_TIMEZONE: str = os.getenv("SCHEDULER_TIMEZONE")
+
+jobstores = {'default': SQLAlchemyJobStore(url=f'sqlite:///{DB_URL}', tablename='scheduled_jobs')}
+executors = {'default': ThreadPoolExecutor(20)}
+bot_scheduler = BackgroundScheduler(jobstores=jobstores,
+                                    executors=executors,
+                                    timezone=timezone(SCHEDULER_TIMEZONE)
+                                    )
 
 
-class Scheduler:
+def test_print_job():
+    print('SCHEDULED PRINT JOB IN PROGRESS ...')
 
-    def __init__(self, bot):
-        self.bot = bot
-        self.timezone = timezone(SCHEDULER_TIMEZONE)
-        self._schedule_test_messaging()
 
-    def _job(self, text: str) -> None:
-        msg = f'{datetime.now(tz=self.timezone).strftime("%H:%M:%S")}\nScheduled message:\n{text}'
-        self.bot.send_admin_message(text=msg)
-    # return schedule.CancelJob
+def schedule_test_print_job():
+    bot_scheduler.add_job(id='1',
+                          func=test_print_job,
+                          name='TEST PRINT JOB',
+                          trigger=IntervalTrigger(seconds=2),
+                          replace_existing=True
+                          )
 
-    def _schedule_message_daily(self, text: str, run_time: str) -> None:
-        time_obj = time.fromisoformat(run_time)
-        schedule.every().day.at(time_obj.strftime("%H:%M:%S"), tz=self.timezone).do(self._job, text=text)
 
-    def _schedule_test_messaging(self) -> None:
-        t1, t2, t3 = SCHEDULER_RUN_TIMES
-        self._schedule_message_daily(text='Доброе утро! Бот на связи', run_time=t1)
-        self._schedule_message_daily(text='Обед! Bon appetit!', run_time=t2)
-        self._schedule_message_daily(text='Рабочий день закончен. Хорошего вечера!', run_time=t3)
+def schedule_reset_requests_counter(db_instance: Database):
+    h, m, s = REQUESTS_COUNTER_RESET_TIME.split(':')
+    bot_scheduler.add_job(id='2',
+                          func=db_instance.reset_requests_counter,
+                          name='RESET REQUESTS COUNTER',
+                          trigger=CronTrigger(hour=h, minute=m, second=s),
+                          replace_existing=True
+                          )
 
-    def start(self):
-        while True:
-            schedule.run_pending()
-            sleep(1)
+
+def send_admin_message(text: str) -> None:
+    from bet_bot import BetBot
+    bot = BetBot()
+    bot.notify_admin(text)
+
+
+def schedule_bot_message_sending(message_text: str, trigger: IntervalTrigger | CronTrigger) -> None:
+    bot_scheduler.add_job(id='3',
+                          func=send_admin_message,
+                          name='BOT ADMIN MESSAGE SENDING',
+                          trigger=trigger,
+                          replace_existing=True,
+                          args=[message_text]
+                          )
+
+
+# if __name__ == '__main__':
+#     db = Database()
+#     schedule_test_print_job()
+#
+#     try:
+#         bot_scheduler.start()
+#         while True:
+#             pass
+#     except (KeyboardInterrupt, SystemExit):
+#         bot_scheduler.shutdown()

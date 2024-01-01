@@ -1,194 +1,215 @@
-import sqlite3 as sq
-from typing import List, Dict, Union, Callable, Any
-import datetime
-import json
-from pprint import pprint
+import sqlite3
+import logging
+from utilities import initialize_logging, load_confidentials_from_env
+import team_parser
+from typing import Literal
+from config import DAILY_REQUESTS_QUOTA
+
+# TODO hide db path into env
+DB_PATH = 'db/TEST_MyRPLBetBot.db'
+CREATE_DB_SQL_FILE_PATH = 'db/create_db_tables.sql'
+initialize_logging()
 
 
 class Database:
     def __init__(self):
-        self.name = 'db/MyRPLBetBot.db'
+        self.name = DB_PATH
+        self.conn = None
+        self.cur = None
+        self._init_db()
 
-    @staticmethod
-    def _ensure_connection(func: Callable):
-        def wrapper(self, *args: Any, **kwargs: Any) -> Callable:
-            with sq.connect(self.name) as conn:
-                cur = conn.cursor()
-                res = func(self, *args, **kwargs, conn=conn, cur=cur)
-            return res
+    def __enter__(self):
+        self.conn = sqlite3.connect(self.name)
+        self.cur = self.conn.cursor()
+        return self
 
-        return wrapper
+    def __exit__(self, ext_type, exc_value, traceback):
+        self.cur.close()
+        if isinstance(exc_value, Exception):
+            self.conn.rollback()
+        else:
+            self.conn.commit()
+        self.conn.close()
 
-    @_ensure_connection
-    def _read_table_column_names(self, table_name: str, conn: sq.Connection, cur: sq.Cursor) -> list[str]:
-        cur.execute(f"PRAGMA table_info({table_name})")
-        rows = cur.fetchall()
-        column_names = [row[1] for row in rows]
-        return column_names
+    def _db_exists(self) -> bool:
+        with self:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type == 'table'")
+            db_exists = bool(self.cur.fetchall())
+            return db_exists
 
-    @_ensure_connection
-    def create_teams_table(self, conn: sq.Connection, cur: sq.Cursor):
-        query = '''
-		CREATE TABLE IF NOT EXISTS "teams" (
-			"team_id"	INTEGER NOT NULL UNIQUE,
-			"name"	TEXT,
-			"city"	TEXT,
-			"logo_url"	TEXT,
-			"logo"	BLOB,
-			PRIMARY KEY("team_id")
-			)
-		'''
-        cur.execute(query)
-        conn.commit()
+    def _init_db(self) -> None:
+        try:
+            if not self._db_exists():
+                with open(CREATE_DB_SQL_FILE_PATH, 'r') as f:
+                    sql_script = f.read()
+                with self:
+                    self.cur.executescript(sql_script)
+                logging.info(f"SQL script executed successfully. "
+                             f"'{self.name}' created!")
 
-    @_ensure_connection
-    def _delete_table(self, table_name: str, conn: sq.Connection, cur: sq.Cursor):
-        query = f"DROP TABLE IF EXISTS {table_name}"
-        cur.execute(query)
-        conn.commit()
+                self._populate_db()
+                logging.info(f"'{self.name}' populated. Initial data stored.")
+        except Exception as e:
+            logging.exception(f"Error during database initialization: {e}")
+            raise  # Re-raise the exception to see the traceback in the console
 
-    @_ensure_connection
-    def _add_team(self, team: dict, conn: sq.Connection, cur: sq.Cursor):
+    def _populate_db(self) -> None:
+        admin_user_data = {'telegram_id': load_confidentials_from_env('ADMIN_ID'), 'is_admin': 1}
+        test_user_data = {'telegram_id': load_confidentials_from_env('TEST_ACCOUNT_ID')}
+        users_to_insert = (admin_user_data, test_user_data)
+        api_requests_data = {'requests_today': 0, 'daily_requests_quota': DAILY_REQUESTS_QUOTA}
+        accurate_team_data_list = team_parser.main()
 
-        query = '''
-		INSERT OR IGNORE INTO teams (team_id, name, city, logo_url, logo)
-		VALUES(?, ?, ?, ?, ?)
-		'''
-        params = (team['team_id'], team['name'], team['city'], team['logo_url'], team['logo'])
+        for u in users_to_insert:
+            self._insert_into_table('users', u)
 
-        cur.execute(query, params)
-        conn.commit()
+        self._insert_into_table('api_requests', api_requests_data)
 
-    def update_teams_list(self, teams_to_check: List[Dict]):
-        for t in teams_to_check:
-            self._add_team(t)
+        for t in accurate_team_data_list:
+            self._insert_into_table('accurate_team_data', t)
 
-    @_ensure_connection
-    def create_contests_table(self, conn: sq.Connection, cur: sq.Cursor):
-        query = '''
-		CREATE TABLE IF NOT EXISTS "contests" (
-		"contest_id"	INTEGER NOT NULL,
-		"contest_api_id"	INTEGER,
-		"league_name"	TEXT,
-		"league_country"	TEXT,
-		"year"	INTEGER,
-		"start_date"	TEXT,
-		"finish_date"	TEXT,
-		"logo"	BLOB,
-		"logo_url"	TEXT,
-		"is_active"	INTEGER NOT NULL DEFAULT 1,
-		PRIMARY KEY("contest_id" AUTOINCREMENT)
-		)
-		'''
-        cur.execute(query)
-        conn.commit()
+    def _read_table(self, table: str) -> tuple[dict]:
+        with self:
+            self.cur.execute(f"SELECT * FROM {table}")
+            columns = tuple(i[0] for i in self.cur.description)
+            rows = self.cur.fetchall()
+            result = tuple({c: r for c, r in zip(columns, r)} for r in rows)
+            return result
 
-    @_ensure_connection
-    def add_contest(self, contest_api_id: int, league_name: str, league_country: str, year: int, start_date: str,
-                    finish_date: str, logo: bytes, logo_url: str, is_active: bool, conn: sq.Connection,
-					cur: sq.Cursor)\
-			-> None:
-        query = '''
-		INSERT INTO contests
-		(contest_api_id, league_name, league_country, year, start_date, finish_date, logo, logo_url, is_active)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		'''
-        params = (contest_api_id, league_name, league_country, year, start_date, finish_date, logo, logo_url, is_active)
-        cur.execute(query, params)
-        conn.commit()
+    def _table_exists(self, table_name: str) -> bool:
+        with self:
+            self.cur.execute("SELECT name FROM sqlite_master WHERE type == 'table'")
+            db_table_names = tuple(i[0] for i in self.cur.fetchall())
+            return table_name in db_table_names
 
-    @_ensure_connection
-    def contest_exists(self, contest_api_id: int, year: int, conn: sq.Connection, cur: sq.Cursor) -> bool:
+    def _insert_into_table(self, table_name: str, data_to_insert: dict) -> None:
+        with self:
+            columns = ', '.join((data_to_insert.keys()))
+            values = tuple(data_to_insert.values())
+            question_marks = f"{', '.join('?' * len(values))}"
+            query = f"INSERT INTO {table_name} ({columns}) VALUES ({question_marks})"
+            params = values
 
-        query = "SELECT * FROM contests WHERE contest_api_id = ? AND year = ?"
-        params = (contest_api_id, year)
-        cur.execute(query, params)
-        result = cur.fetchall()
-        return result != []
+            data_to_log = data_to_insert
+            if 'logo' in data_to_log: data_to_log['logo'] = 'BINARY DATA NOT LOGGED DUE TO SIZE'
 
-    @_ensure_connection
-    def read_contest(self, contest_id, conn: sq.Connection, cur: sq.Cursor):
-        query = '''SELECT * FROM contests WHERE contest_id = ?'''
-        params = (contest_id,)
-        cur.execute(query, params)
-        row_data = cur.fetchall()
-        contest = dict(zip([c[0] for c in cur.description], row_data[0]))
-        return contest
+            try:
+                self.cur.execute(query, params)
+                logging.info(f"Data inserted. "
+                             f"Table: '{table_name}', data_to_insert: {data_to_log}.")
+            except (sqlite3.DatabaseError, sqlite3.Error, OverflowError) as e:
+                logging.error(f"Failed to insert data. "
+                              f"Received: table_name: '{table_name}', data_to_insert: {data_to_log}. "
+                              f"Error: {e.__repr__()}.")
+                return
 
-    @_ensure_connection
-    def delete_contest(self, name: str, country: str, year: int, conn: sq.Connection, cur: sq.Cursor) -> None:
-        if not self.contest_exists(name, country, year):
-            return
-        query = '''DELETE FROM contests WHERE name = ? AND country = ? AND year = ?'''
-        params = (name, country, year)
-        cur.execute(query, params)
-        conn.commit()
-        print(f'Сontest {name} {country} season {year} deleted')
+    def _update_table(self, table_name: str, data_to_update: dict) -> None:
+        with self:
+            query = f"UPDATE {table_name} " \
+                    f"SET {', '.join([f'{k} = ?' for k in data_to_update.keys()])}"
 
-    @_ensure_connection
-    def create_matches_table(self, conn: sq.Connection, cur: sq.Cursor):
-        query = '''
-		CREATE TABLE IF NOT EXISTS "matches" (
-		"match_id"	INTEGER NOT NULL UNIQUE,
-		"contest_api_id"	INTEGER,
-		"match_datetime"	TEXT,
-		"round"	INTEGER,
-		"home_team_id"	INTEGER,
-		"away_team_id"	INTEGER,
-		"score"	TEXT,
-		"status_long"	TEXT,
-		"status_short"	TEXT,
-		FOREIGN KEY("contest_api_id") REFERENCES "contests"("contest_api_id"),
-		PRIMARY KEY("match_id")
-		)
-		'''
-        cur.execute(query)
-        conn.commit()
+            columns_to_update = tuple(data_to_update.keys())
+            values_to_update = tuple(data_to_update.values())
+            try:
+                self.cur.execute(query, values_to_update)
+                logging.info(f"Table updated. "
+                             f"Table '{table_name}', columns: {columns_to_update}, new values: {values_to_update}'.")
+            except (sqlite3.DatabaseError, sqlite3.Error, OverflowError) as e:
+                logging.error(f"Failed to update table. "
+                              f"Table: {table_name}, columns: {columns_to_update}, new values: {values_to_update}. "
+                              f"Error: {e.__repr__()}.")
+                return
 
-    @_ensure_connection
-    def _update_match(self, match: Dict[str, Union[str, int]], conn: sq.Connection, cur: sq.Cursor) -> None:
-        query = '''
-		INSERT INTO matches
-		(match_id, contest_api_id, match_datetime, round, home_team_id, away_team_id, score, status_long, status_short)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-		'''
-        params = (
-            match['match_id'], match['contest_api_id'], match['match_datetime'], match['round'], match['home_team_id'],
-            match['away_team_id'], match['score'], match['status_long'], match['status_short']
-        )
-        cur.execute(query, params)
-        conn.commit()
+    def _update_requests_counter(self, action: Literal['increment', 'reset']) -> None:
+        """ Updates requests made today either by incrementing it by 1 either resetting it to zero. """
+        requests_today_stored = self.read_requests_counter()
+        requests_today_updated = requests_today_stored + 1 if action == 'increment' else 0
+        self._update_table('api_requests', {'requests_today': requests_today_updated})
 
-    def update_matches(self, matches_list: List[Dict]) -> None:
+    def increment_requests_counter(self) -> None:
+        """Increments the value of requests made today by one"""
+        self._update_requests_counter('increment')
+
+    def reset_requests_counter(self) -> None:
+        """Sets requests made today to zero"""
+        self._update_requests_counter('reset')
+        logging.info(f"Daily requests quota reset.")
+
+    def read_requests_counter(self) -> int:
+        """ Gets a number of requests to the statistics data API made today. """
+        return self._read_table('api_requests')[0]['requests_today']
+
+    def read_contests(self):
+        return self._read_table('contests')
+
+    def add_contest(self, contest: dict) -> None:
+        self._insert_into_table('contests', contest)
+
+    def insert_missing_teams(self, team_list: list) -> None:
+        # TODO add logging to success on inserting each team and overall 'Team list is up to date'
+        for t in team_list:
+            try:
+                self._insert_into_table('teams', t)
+            except sqlite3.IntegrityError as e:
+                if "UNIQUE constraint failed" in str(e):
+                    continue
+                else:
+                    logging.error(f"Failed to insert team. "
+                                  f"Error: {e.__repr__()}.")
+
+    def insert_matches(self, matches_list: list[dict]) -> None:
         for m in matches_list:
-            self._update_match(m)
-
-    @_ensure_connection
-    def create_bets_table(self, conn: sq.Connection, cur: sq.Cursor) -> None:
-        query = '''
-        CREATE TABLE IF NOT EXISTS "bets" (
-        "match_id"	INTEGER,
-        "user_id"	INTEGER,
-        "bet"	TEXT,
-        FOREIGN KEY("user_id") REFERENCES "users"("user_id"),
-        FOREIGN KEY("match_id") REFERENCES "calendar"("match_id")
-        )
-        '''
-        cur.execute(query)
-        conn.commit()
-
-    @_ensure_connection
-    def _delete_all_tables(self, conn: sq.Connection, cur: sq.Cursor) -> None:
-        for t in ('contests', 'teams', 'matches', 'bets'):
-            self._delete_table(t)
-
+            try:
+                self._insert_into_table('matches', m)
+            except sqlite3.IntegrityError as e:
+                if "UNIQUE constraint failed" in str(e):
+                    continue
+                else:
+                    logging.error(f"Failed to insert team. "
+                                  f"Error: {e.__repr__()}.")
 
 
 if __name__ == '__main__':
     from pprint import pprint
+    from stats_api import StatsAPIHandler
 
     db = Database()
-    # for t in ('contests', 'bets', 'matches', 'teams'):
-    #     db._delete_table(t)
-    db._delete_all_tables()
-
+    # teams_list = db._read_table('teams')
+    # clean_teams_list = [{k: v for k, v in t.items() if k != 'logo'} for t in teams_list]
+    # # print('------------------------------------------------------STATS API TEAM LIST')
+    # # pprint(clean_teams_list)
+    #
+    # # print('')
+    #
+    # accurate_teams_list = db._read_table('accurate_team_data')
+    # clean_accurate_teams_list = [{k: v for k, v in t.items() if k == 'name_eng'} for t in accurate_teams_list]
+    # # print('------------------------------------------------------ACCURATE TEAM LIST')
+    # # pprint(clean_accurate_teams_list)
+    #
+    # combined_list = {}
+    #
+    # for i, t in enumerate(teams_list):
+    #     for j, a_t in enumerate(accurate_teams_list):
+    #         if t['name'] == a_t['name_eng']:
+    #             combined_list[i] = j
+    #             break
+    #
+    # paired_teams = list(combined_list.keys())
+    # paired_accurate_teams = list(combined_list.values())
+    # print(f'COMBINED LIST: {combined_list}')
+    # # print(f'PAIRED TEAMS: {paired_teams}')
+    # # print(f'PAIRED ACCURATE TEAMS: {paired_accurate_teams}')
+    # unpaired_teams = set(range(len(clean_teams_list))).difference(paired_teams)
+    # unpaired_accurate_teams = set(range(len(clean_accurate_teams_list))).difference(paired_accurate_teams)
+    # print(f'UNPAIRED TEAMS: {unpaired_teams}')
+    # print(f'UNPAIRED ACCURATE TEAMS: {unpaired_accurate_teams}')
+    #
+    # for team_i in combined_list:
+    #     accurate_team_i = combined_list[team_i]
+    #     t = teams_list[team_i]
+    #     a_t = accurate_teams_list[accurate_team_i]
+    #     t['name'] = a_t['name']
+    #     t['city'] = a_t['city']
+    #
+    # clean_teams_list = [{k: v for k, v in t.items() if k != 'logo'} for t in teams_list]
+    # pprint(clean_teams_list)
