@@ -145,9 +145,9 @@ class BetBot(telebot.TeleBot):
         if callback_query.data == 'admin_button1':
             self._create_betting_contest()
         elif callback_query.data == 'admin_button2':
-            self.send_message(chat_id, BOT_COMMAND_NOT_SUPPORTED_MESSAGE)
+            self._feature_not_ready_yet()
         else:
-            self.send_message(chat_id, BOT_COMMAND_NOT_SUPPORTED_MESSAGE)
+            self._feature_not_ready_yet()
 
     def create_admin_inline(self) -> telebot.types.InlineKeyboardMarkup:
         inline_keyboard = telebot.types.InlineKeyboardMarkup(row_width=1)
@@ -159,6 +159,7 @@ class BetBot(telebot.TeleBot):
         return inline_keyboard
 
     def _create_betting_contest(self) -> None:
+        logging.info('A command to create a new betting contest received...')
 
         if self._current_football_season_already_in_db():
             return
@@ -179,12 +180,11 @@ class BetBot(telebot.TeleBot):
 
         self._create_calendar(current_football_season)
 
-        self.notify_admin(
-            BOT_NEW_BETTING_CONTEST_CREATED.format(
-                current_football_season['league_country'], current_football_season['league_name'], current_football_season['year'],
-                current_football_season['year'] + 1
-            )
-        )
+        country = current_football_season['league_country']
+        league = current_football_season['league_name']
+        season = current_football_season['year']
+        logging.info(f"Betting contest for {country} {league} season {season}-{season + 1} created.")
+        self.notify_admin( BOT_NEW_BETTING_CONTEST_CREATED.format(country, league, season, season + 1))
 
     def _read_current_football_season(self) -> dict | None:
         contests = self.db.read_contests()
@@ -302,12 +302,16 @@ class BetBot(telebot.TeleBot):
             warning_message = BOT_DAILY_REQUESTS_QUOTA_REACHED_MESSAGE.format(config.REQUESTS_COUNTER_RESET_TIME)
         self.notify_admin(warning_message)
 
+    def _feature_not_ready_yet(self):
+        self.notify_admin(BOT_COMMAND_NOT_SUPPORTED_MESSAGE)
+
 
 if __name__ == "__main__":
     from pprint import pprint
 
     event_bus = EventBus()
     bot = BetBot(stats_api=StatsAPIHandler(), database=Database(), event_bus=EventBus())
+
     # bot._create_betting_contest()
     # bot.create_calendar(235, 2023)
 
